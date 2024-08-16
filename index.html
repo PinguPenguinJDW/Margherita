@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pizza Making Guide</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start; /* Align content to start at the top */
+            height: 100vh;
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background-color: #f7f7f7;
+        }
+
+        #step-title {
+            margin-top: 20px;
+            font-size: 24px;
+            color: #333;
+        }
+
+        .step-image {
+            width: 20%;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+
+        .instructions {
+            font-size: 18px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        #webcam-container {
+            margin-bottom: 20px;
+        }
+
+        video {
+            width: 80%;
+            border: 2px solid #333;
+            border-radius: 10px;
+        }
+
+        #label-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .confidence-bar {
+            width: 80%;
+            height: 25px;
+            background-color: red;
+            border-radius: 5px;
+            text-align: center;
+            color: white;
+            line-height: 25px; /* Vertically center the text */
+        }
+
+        .analyse-button {
+            padding: 10px 20px;
+            font-size: 18px;
+            background-color: #333;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-bottom: 20px;
+        }
+
+        #debugging-section {
+            margin-top: 20px;
+            width: 80%;
+            background-color: #eee;
+            padding: 10px;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Step-specific information -->
+    <h1 id="step-title">Step: Pizza Base</h1>
+    <img src="assets/images/base.jpg" alt="Pizza Base" class="step-image" id="step-image">
+    <div class="instructions" id="instructions">
+        Press a full dough on the pizza press and place on the prep table.
+    </div>
+
+    <!-- Webcam and prediction elements at the bottom -->
+    <div id="webcam-container">
+        <video id="video" autoplay playsinline></video>
+    </div>
+    <div id="label-container">
+        <div class="confidence-bar" id="confidence-bar"></div>
+    </div>
+    <button class="analyse-button" id="analyse-button">Analyze</button>
+
+    <!-- Debugging section -->
+    <div id="debugging-section">
+        <h3>Debugging Information:</h3>
+        <div id="all-predictions"></div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest/dist/tf.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@latest/dist/teachablemachine-image.min.js"></script>
+    <script type="text/javascript">
+        const URL = "assets/model1/";
+        let model, maxPredictions;
+        let currentStep = 0;
+
+        const steps = [
+            { label: "Pizza Base", instructions: "Press a full dough on the pizza press and place on the prep table.", image: "assets/images/base.jpg" },
+            { label: "Add Sauce", instructions: "Add 2 x 2oz spoodles of pizza sauce to the base and spread using the bottom of the spoodle.", image: "assets/images/sauce.jpg" },
+            { label: "Add Cheese", instructions: "Add 2 x heaped 3oz spoodles of diced mozzarella to the pizza and spread evenly.", image: "assets/images/cheese.jpg" }
+        ];
+
+        // Load the image model and setup the webcam
+        async function init() {
+            const modelURL = URL + "model.json";
+            const metadataURL = URL + "metadata.json";
+
+            model = await tmImage.load(modelURL, metadataURL);
+            maxPredictions = model.getTotalClasses();
+
+            try {
+                const constraints = { video: { facingMode: "environment" } };
+                const stream = await navigator.mediaDevices.getUserMedia(constraints);
+                const video = document.getElementById('video');
+                video.srcObject = stream;
+
+                video.onloadedmetadata = () => {
+                    video.play();
+                    updateRealTimeFeedback();
+                };
+            } catch (error) {
+                console.warn("Back camera not available or not accessible. Falling back to default camera.", error);
+                try {
+                    const fallbackConstraints = { video: true };
+                    const stream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
+                    const video = document.getElementById('video');
+                    video.srcObject = stream;
+
+                    video.onloadedmetadata = () => {
+                        video.play();
+                        updateRealTimeFeedback();
+                    };
+                } catch (fallbackError) {
+                    console.error("Error accessing any camera: ", fallbackError);
+                }
+            }
+        }
+
+        // Real-time feedback loop
+        async function updateRealTimeFeedback() {
+            const video = document.getElementById('video');
+            const currentLabel = steps[currentStep].label;
+
+            const prediction = await model.predict(video);
+            let currentStepPrediction = prediction.find(pred => pred.className === currentLabel);
+
+            if (currentStepPrediction) {
+                const confidenceBar = document.getElementById('confidence-bar');
+                confidenceBar.style.backgroundColor = currentStepPrediction.probability > 0.8 ? 'green' : 'red';
+                confidenceBar.innerText = `${currentStepPrediction.className}: ${(currentStepPrediction.probability * 100).toFixed(2)}%`;
+            }
+
+            // Debugging: Display all predictions
+            let allPredictionsHTML = '<ul>';
+            prediction.forEach(pred => {
+                allPredictionsHTML += `<li>${pred.className}: ${(pred.probability * 100).toFixed(2)}%</li>`;
+            });
+            allPredictionsHTML += '</ul>';
+            document.getElementById('all-predictions').innerHTML = allPredictionsHTML;
+
+            requestAnimationFrame(updateRealTimeFeedback);
+        }
+
+        // Analyze current step and move to next if criteria are met
+        document.getElementById('analyse-button').addEventListener('click', async () => {
+            const video = document.getElementById('video');
+            const currentLabel = steps[currentStep].label;
+
+            await new Promise(resolve => setTimeout(resolve, 2000)); // Wait for 2 seconds
+
+            const prediction = await model.predict(video);
+            let currentStepPrediction = prediction.find(pred => pred.className === currentLabel);
+
+            if (currentStepPrediction && currentStepPrediction.probability > 0.8) {
+                // Move to the next step
+                currentStep++;
+                if (currentStep < steps.length) {
+                    console.log(`Moving to Step ${currentStep + 1}: ${steps[currentStep].label}`);
+                    document.getElementById('step-title').innerText = `Step: ${steps[currentStep].label}`;
+                    document.getElementById('instructions').innerText = steps[currentStep].instructions;
+                    document.getElementById('step-image').src = steps[currentStep].image;
+                } else {
+                    alert("All steps completed!");
+                }
+            } else {
+                alert("Confidence below 80%, please try again.");
+            }
+        });
+
+        // Initialize the application
+        init();
+    </script>
+</body>
+</html>
