@@ -35,11 +35,15 @@
         }
 
         #webcam-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 60%;
             margin-bottom: 20px;
         }
 
         video {
-            width: 80%;
+            width: 60%;
             border: 2px solid #333;
             border-radius: 10px;
         }
@@ -114,7 +118,8 @@
         const steps = [
             { label: "Pizza Base", instructions: "Press a full dough on the pizza press and place on the prep table.", image: "assets/images/base.jpg" },
             { label: "Add Sauce", instructions: "Add 2 x 2oz spoodles of pizza sauce to the base and spread using the bottom of the spoodle.", image: "assets/images/sauce.jpg" },
-            { label: "Add Cheese", instructions: "Add 2 x heaped 3oz spoodles of diced mozzarella to the pizza and spread evenly.", image: "assets/images/cheese.jpg" }
+            { label: "Add Cheese", instructions: "Add 2 x heaped 3oz spoodles of diced mozzarella to the pizza and spread evenly.", image: "assets/images/cheese.jpg" },
+            { label: "Well Done!", instructions: "Congratulations! You've completed the pizza-making process for a Margherita pizza.", image: "assets/images/cheese.jpg", finalStep: true }
         ];
 
         // Load the image model and setup the webcam
@@ -196,6 +201,13 @@
                     document.getElementById('step-title').innerText = `Step: ${steps[currentStep].label}`;
                     document.getElementById('instructions').innerText = steps[currentStep].instructions;
                     document.getElementById('step-image').src = steps[currentStep].image;
+                    
+                    // If it's the final step, hide unnecessary elements
+                    if (steps[currentStep].finalStep) {
+                        document.getElementById('webcam-container').style.display = 'none';
+                        document.getElementById('label-container').style.display = 'none';
+                        document.getElementById('analyse-button').style.display = 'none';
+                    }
                 } else {
                     alert("All steps completed!");
                 }
